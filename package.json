@@ -1,0 +1,19 @@
+{
+  "name": "uc-bes-sekiz",
+  "version": "0.1.0",
+  "private": true,
+  "description": "3-5-8 kart oyunu: web tabanlı, çok oyunculu (en fazla 3 insan), botlu.",
+  "main": "packages/server/index.js",
+  "scripts": {
+    "start": "node packages/server/index.js",
+    "sim": "node test/simulate.js",
+    "e2e": "node test/e2e.js",
+    "test": "node test/simulate.js 30 12 && node test/e2e.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
