@@ -135,4 +135,44 @@ for (const [no, expectEx] of [[1, false], [2, true], [3, true], [4, false], [5, 
 }
 
 
+// görünüm: kim kimden ne istedi/verdi; taraflar kartları görür, üçüncü oyuncu yalnızca adedi
+{
+  const g = fresh(1, [3, -1, -2], 1);
+  const st = g.view(0).exchange.current;
+  const passed = g.hands[0].slice(0, st.count);
+  assert(g.act(0, { type: 'pass', cards: passed }).ok);
+  for (const seat of [0, 1, 2]) {
+    const recs = g.view(seat).exchange.records;
+    assert.strictEqual(recs.length, st.givers.length);
+    recs.forEach((r, i) => {
+      assert.strictEqual(r.asker, 0);
+      assert.strictEqual(r.giver, st.givers[i].seat);
+      assert.strictEqual(r.n, st.givers[i].count);
+      if (seat === 0 || seat === r.giver) {
+        assert.strictEqual(r.passed.length, r.n);
+        assert.strictEqual(r.returned.length, r.n);
+      } else {
+        assert.strictEqual(r.passed, null, 'üçüncü oyuncu kartları görmez');
+        assert.strictEqual(r.returned, null);
+      }
+    });
+  }
+  assert.deepStrictEqual(g.view(1).gotKitty, [], 'yer alınmadan boş');
+  assert(g.act(1, { type: 'trump', suit: 'S' }).ok);
+  assert(g.act(1, { type: 'discard', cards: g.hands[1].slice(0, 4) }).ok);
+  assert.strictEqual(g.view(1).gotKitty.length, 4, 'dağıtıcı yerden 4 kart aldı');
+  assert.strictEqual(g.view(0).gotKitty.length, 0, 'diğerleri görmez');
+}
+{
+  const g = fresh(1, [-3, 1, 2], 0);
+  const [a, b] = g.exchange.steps;
+  assert(g.act(a.asker, { type: 'pass', cards: g.hands[a.asker].slice(0, a.count) }).ok);
+  assert(g.act(b.asker, { type: 'pass', cards: g.hands[b.asker].slice(0, b.count) }).ok);
+  assert(g.act(0, { type: 'trump', suit: 'H' }).ok);
+  const kit = g.kitty.slice();
+  assert(g.act(0, { type: 'discard', cards: g.hands[0].slice(0, 4) }).ok);
+  assert.deepStrictEqual(g.view(0).gotKitty.slice().sort(), kit.sort(), 'dağıtıcı yerden aldığı kartları bilir');
+  assert.deepStrictEqual(g.view(1).gotKitty, [], 'diğerleri yerden alınanları görmez');
+}
+
 console.log('Kart değişimi testleri OK');

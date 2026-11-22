@@ -21,7 +21,7 @@ Aynı ağdaki başka cihazlar `http://<bilgisayar-ip>:3358` adresinden bağlanı
   4. Masadan 4 kapalı kartı (kitty) alır.
   5. Oyun başlar, 5'li el ilk kartı açar.
   Tüm kart alma-verme işlemleri koz belirlenmeden önce biter.
-- El oynama: açılan renge uymak zorunlu, rengin yoksa istediğin kart. En yüksek koz, kozsuzsa açılan renkteki en yüksek kart eli alır; eli alan sonraki eli açar.
+- El oynama: açılan renkte kartın varsa o renkten atmak zorundasın ve masadaki en yüksek kartı geçebiliyorsan geçmek (büyütmek) zorundasın; geçemiyorsan o renkten istediğini atarsın. Rengin yoksa koz atmak zorundasın (masada koz varsa ve ondan büyük kozun varsa büyütmek zorundasın; büyüğün yoksa herhangi bir koz). Hem rengin hem kozun yoksa her kart serbest. Rengin varken masada koz olsa bile renk atarsın (kozu geçemezsin, büyütme zorunluluğu yok). En yüksek koz, kozsuzsa açılan renkteki en yüksek kart eli alır; eli alan sonraki eli açar.
 - Puan: el puanı = alınan el − hedef (toplamı her zaman 0). 9 el oynanır, her oyuncu her hedefi 3'er kez oynar. En yüksek toplam kazanır. Eşitlikte son elin puanı yüksek olan, yine eşitse ortak galibiyet.
 
 ### Kart değişimi
@@ -33,6 +33,8 @@ Aynı ağdaki başka cihazlar `http://<bilgisayar-ip>:3358` adresinden bağlanı
 - Veren, iletilen her kart için o renkteki en yüksek kartını geri verir (iletilen kart da elinde sayılır). Aynı renkten birden çok kart iletildiyse sıradaki en yüksek kartlar gelir. O renkte kartı yoksa ya da daha yükseği yoksa iletilen kart iade edilir.
 - **Yerden gelen kart (kanıt, devir değil):** 8'li el yerdeki 4 kapalı kartı alınca, içinde kendisinden istenen bir seride diğer oyunculara verdiği kartlardan büyük kart varsa onu masada herkese açık gösterir ("Yerden geldi · ad"; hile yapmadığının kanıtı) ve günlüğe yazılır. Kart kimseye verilmez, 8'linin elinde kalır; kart değişimi yer kartlarına dokunmaz. Gösterim ilk el boyunca masada durur. İstenen renk dışındaki ya da verdiğinden küçük yer kartları gösterilmez.
 - Kartlar üçüncü oyuncuya gösterilmez.
+
+- Kart değişimi animasyonu: her isteyen adımında kartlar masada oyuncular arasında uçar (önce isteyenin kartları verene, sonra verenlerin iadeleri isteyene) ve üstte kim kimden kaç kart istedi / ne verdi yazar. İlgili iki oyuncu kartların yüzünü görür, üçüncü oyuncu yalnızca kapalı kart ve adet görür. Değişimden sonra masanın ortasında özet satırları durur (kim kime ne verdi, ne aldı). Elinde yeni gelen kartlar (değişimde alınanlar, 8'linin yerden aldıkları) ilk kart oynanana kadar yeşil noktayla işaretlenir.
 
 ## Altyapı kararları
 

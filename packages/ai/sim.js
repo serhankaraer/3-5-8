@@ -58,8 +58,7 @@ function policy(seat, st) {
   const hand = st.hands[seat];
   if (hand.length === 1) return hand[0];
   if (st.trick.length === 0) return leadChoice(hand, st.trump, st.played);
-  const led = suitOf(st.trick[0].card);
-  const legal = R.legalCards(hand, led);
+  const legal = R.legalCards(hand, st.trick, st.trump);
   if (legal.length === 1) return legal[0];
   let best = st.trick[0].card;
   for (let i = 1; i < st.trick.length; i++) {

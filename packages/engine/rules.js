@@ -10,11 +10,32 @@ function targetFor(seat, dealer) {
   return 3;
 }
 
-// Açılan renk varsa ve elde o renk varsa mecburen o renk; yoksa her kart.
-function legalCards(hand, ledSuit) {
-  if (!ledSuit) return hand.slice();
-  const follow = hand.filter((c) => suitOf(c) === ledSuit);
-  return follow.length ? follow : hand.slice();
+// Kurallar: açılan renkte kartın varsa onu atmak zorundasın; o renkte masadaki en yüksek kartı geçebiliyorsan geçmek zorundasın.
+// Rengin yoksa ve kozun varsa koz atmak zorundasın (masada koz varsa ve ondan büyük kozun varsa büyütmek zorundasın).
+// Hem rengin hem kozun yoksa her kart serbest.
+// trick: masadaki [{seat, card}] (açan ilk); trump: koz rengi.
+function legalCards(hand, trick, trump) {
+  if (!trick || !trick.length) return hand.slice();
+  const led = suitOf(trick[0].card);
+  let best = trick[0].card;
+  for (let i = 1; i < trick.length; i++) if (cardBeats(trick[i].card, best, trump)) best = trick[i].card;
+  const follow = hand.filter((c) => suitOf(c) === led);
+  if (follow.length) {
+    if (suitOf(best) === led) {
+      const higher = follow.filter((c) => rankOf(c) > rankOf(best));
+      if (higher.length) return higher;
+    }
+    return follow;
+  }
+  const trumps = trump ? hand.filter((c) => suitOf(c) === trump) : [];
+  if (trumps.length) {
+    if (suitOf(best) === trump) {
+      const higher = trumps.filter((c) => rankOf(c) > rankOf(best));
+      if (higher.length) return higher;
+    }
+    return trumps;
+  }
+  return hand.slice();
 }
 
 // `card`, o an kazanan `best` kartını yener mi? (best ya koz ya da açılan renktir)

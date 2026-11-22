@@ -40,7 +40,10 @@ class Bot {
       const led = suitOf(rec.plays[0].card);
       for (const p of rec.plays) {
         if (p.seat === view.you || this.rng() < pm) this.remembered.add(p.card);
-        if (suitOf(p.card) !== led) this.voids[p.seat][led] = true; // renk bitirme herkesçe görülür
+        if (suitOf(p.card) !== led) {
+          this.voids[p.seat][led] = true; // renk bitirme herkesçe görülür
+          if (view.trump && suitOf(p.card) !== view.trump) this.voids[p.seat][view.trump] = true; // rengi yok ve koz atmadı: kozu da yok
+        }
       }
     }
   }
@@ -49,7 +52,12 @@ class Bot {
     const v = { 0: { ...this.voids[0] }, 1: { ...this.voids[1] }, 2: { ...this.voids[2] } };
     if (view.trick.length) {
       const led = suitOf(view.trick[0].card);
-      for (const p of view.trick) if (suitOf(p.card) !== led) v[p.seat][led] = true;
+      for (const p of view.trick) {
+        if (suitOf(p.card) !== led) {
+          v[p.seat][led] = true;
+          if (view.trump && suitOf(p.card) !== view.trump) v[p.seat][view.trump] = true;
+        }
+      }
     }
     return v;
   }
