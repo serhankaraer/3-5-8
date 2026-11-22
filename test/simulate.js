@@ -35,6 +35,8 @@ function playGame(seed, traitsList) {
   const bots = [0, 1, 2].map((s) => new Bot({ seat: s, traits: traitsList ? traitsList[s] : genTraits(rng), rng }));
   const stats = { exchanges: 0, gain: 0, hands: 0, steps: 0 };
   let trumpSeen = false;
+  let handNoNow = 0;
+  let lastDiffs = [0, 0, 0];
   const phaseSeq = [];
   let guard = 0;
   while (g.phase !== 'gameEnd') {
@@ -71,23 +73,34 @@ function playGame(seed, traitsList) {
         void dealer;
       }
       if (ev.type === 'trumpChosen') trumpSeen = true;
+      if (ev.type === 'dealt') handNoNow = ev.hand;
       if (ev.type === 'exchangeStart') {
-        const tg = (x) => ev.targets ? ev.targets[x] : g.targets[x];
+        assert(handNoNow % 3 !== 1, 'af: 1., 4. ve 7. elde kart değişimi olmamalı (el ' + handNoNow + ')');
+        const tg = (x) => g.targets[x];
         const steps = ev.steps;
-        for (let i = 1; i < steps.length; i++) {
-          assert(tg(steps[i - 1].asker) >= tg(steps[i].asker), 'isteyenler en yüksek hedeften başlamalı');
-          if (steps[i - 1].asker === steps[i].asker) assert(tg(steps[i - 1].giver) >= tg(steps[i].giver), 'verenler de yüksek hedeften düşüğe sıralanmalı');
+        for (let i = 1; i < steps.length; i++) assert(tg(steps[i - 1].asker) >= tg(steps[i].asker), 'isteyenler en yüksek hedeften başlamalı');
+        for (const st of steps) {
+          for (let i = 1; i < st.givers.length; i++) assert(tg(st.givers[i - 1].seat) >= tg(st.givers[i].seat), 'verenler de yüksek hedeften düşüğe sıralanmalı');
+          assert.strictEqual(st.givers.reduce((a, x) => a + x.count, 0), st.count, 'toplam kart sayısı verenlerin toplamına eşit olmalı');
+          assert.strictEqual(st.count, lastDiffs[st.asker], 'isteyen aştığı kadar kart istemeli');
+          for (const x of st.givers) assert(lastDiffs[x.seat] <= -x.count, 'veren, altında kaldığından fazla vermemeli');
         }
+        stats.steps2 = (stats.steps2 || 0) + steps.length;
       }
       if (ev.type === 'exchangePass') {
         assert(!trumpSeen, 'kart değişimi koz belirlenmeden önce bitmeli');
-        stats.exchanges++;
+        stats.exchanges += ev.passed.length;
         const rank = (c) => Number(c.slice(1));
-        assert(ev.returned[0] === ev.passed[0], 'iade aynı renkten olmalı');
-        assert(rank(ev.returned) >= rank(ev.passed), 'iade kart daha düşük olamaz');
-        stats.gain += rank(ev.returned) - rank(ev.passed);
+        assert.strictEqual(ev.returned.length, ev.passed.length);
+        ev.passed.forEach((p, i) => {
+          assert(ev.returned[i][0] === p[0], 'iade aynı renkten olmalı');
+          assert(rank(ev.returned[i]) >= rank(p), 'iade kart daha düşük olamaz');
+          stats.gain += rank(ev.returned[i]) - rank(p);
+        });
+        assert.strictEqual(new Set(ev.returned).size, ev.returned.length, 'aynı kart iki kez iade edilemez');
       }
       if (ev.type === 'handEnd') {
+        lastDiffs = ev.diffs.slice();
         stats.hands++;
         assert.strictEqual(ev.diffs.reduce((a, b) => a + b, 0), 0, 'fark toplamı 0 olmalı');
         assert.strictEqual(ev.tricks.reduce((a, b) => a + b, 0), 16);

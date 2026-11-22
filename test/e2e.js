@@ -34,7 +34,7 @@ function connect(port) {
         c.last = m;
         if (c.auto && m.game && m.game.legal) {
           const g = m.game;
-          const key = JSON.stringify([g.phase, g.handNo, g.trickNo, g.trick.length, g.hand.length, g.exchange.idx, g.exchange.current && g.exchange.current.remaining]);
+          const key = JSON.stringify([g.phase, g.handNo, g.trickNo, g.trick.length, g.hand.length, g.exchange.idx, g.exchange.current && g.exchange.current.count]);
           if (key !== c.sent) {
             c.sent = key;
             c.bot.seat = m.you;

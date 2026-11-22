@@ -33,11 +33,11 @@ function trickWinner(plays, trump) {
   return best.seat;
 }
 
-// Önceki elin farkları (alınan - hedef) ve YENİ dağıtıcıya göre kart değişim planı.
-// Hedefi aşan (isteyen), altında kalandan (veren) aştığı kadar kart ister.
-// İsteyenler arasında yeni elin hedefi büyük olan önce (8, sonra 5, sonra 3).
-// Bir isteyenin birden çok vereni varsa onlar da yeni elin hedefi büyük olandan küçüğe doğru sıralanır
-// (işlem en yüksek hedeflide başlar, en düşük hedeflide biter).
+// Kart değişimi planı: her isteyen (hedefini aşan) için TEK adım.
+// İsteyen, aştığı kadar kartı altında kalanlardan ister; kartların hepsini tek seferde, körlemesine iletir.
+// İsteyenler yeni elin hedefine göre büyükten küçüğe sıralanır (8, 5, 3); bir isteyenin birden çok vereni varsa
+// onlar da aynı sırada dizilir (iletilen kartların ilk grubu ilk vereene gider).
+// Dönen: [{ asker, givers: [{ seat, count }], count }]
 function exchangePlan(prevDiffs, newDealer) {
   const tgt = (s) => targetFor(s, newDealer);
   const ups = [0, 1, 2].filter((s) => prevDiffs[s] > 0).sort((a, b) => tgt(b) - tgt(a));
@@ -47,28 +47,41 @@ function exchangePlan(prevDiffs, newDealer) {
   const steps = [];
   for (const u of ups) {
     let excess = prevDiffs[u];
+    const givers = [];
     for (const d of downs) {
       if (excess <= 0) break;
       const n = Math.min(excess, need[d]);
       if (n > 0) {
-        steps.push({ asker: u, giver: d, count: n, done: 0 });
+        givers.push({ seat: d, count: n });
         excess -= n;
         need[d] -= n;
       }
     }
+    if (givers.length) steps.push({ asker: u, givers, count: givers.reduce((a, g) => a + g.count, 0) });
   }
   return steps;
 }
 
-// Veren oyuncu, iletilen kartla aynı renkteki en yüksek kartını geri verir.
-// O renkte kartı yoksa ya da en yükseği iletilen karttan küçükse iletilen kart iade edilir.
-function exchangeReturnCard(giverHand, passed) {
-  const s = suitOf(passed);
-  let best = passed;
-  for (const c of giverHand) {
-    if (suitOf(c) === s && rankOf(c) > rankOf(best)) best = c;
+// Veren oyuncu, iletilen her kart için aynı renkteki en yüksek kartını geri verir (iletilen kartlar da elinde sayılır).
+// Aynı renkten birden çok kart iletildiyse en yüksek iletilen karta önce bakılır; her kart bir kez iade edilir.
+// O renkte daha yüksek kartı yoksa iletilen kartın kendisi iade edilir.
+// Dönen dizi, iletilen kartlarla aynı sırada hizalıdır: returned[i], passed[i] karşılığıdır.
+function exchangeReturns(giverHand, passed) {
+  const pool = giverHand.concat(passed);
+  const taken = new Set();
+  const out = new Array(passed.length);
+  const order = passed.map((_, i) => i).sort((a, b) => rankOf(passed[b]) - rankOf(passed[a]));
+  for (const i of order) {
+    const s = suitOf(passed[i]);
+    let best = null;
+    for (const c of pool) {
+      if (taken.has(c) || suitOf(c) !== s) continue;
+      if (best === null || rankOf(c) > rankOf(best)) best = c;
+    }
+    taken.add(best);
+    out[i] = best;
   }
-  return best;
+  return out;
 }
 
-module.exports = { nextSeat, targetFor, legalCards, cardBeats, trickWinner, exchangePlan, exchangeReturnCard };
+module.exports = { nextSeat, targetFor, legalCards, cardBeats, trickWinner, exchangePlan, exchangeReturns };

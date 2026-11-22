@@ -83,7 +83,7 @@ class Bot {
     switch (view.legal && view.legal.kind) {
       case 'discard': return { type: 'discard', cards: this._discard(view) };
       case 'trump': return { type: 'trump', suit: this._trump(view) };
-      case 'pass': return { type: 'pass', card: this._pass(view) };
+      case 'pass': return { type: 'pass', cards: this._pass(view) };
       case 'play': return { type: 'play', card: this._play(view) };
       default: return null;
     }
@@ -154,24 +154,42 @@ class Bot {
       .sort((a, b) => b.v - a.v)[0].s;
   }
 
-  // --- kart değişimi: iletilecek kartı seç (veren aynı renkteki en yüksek kartını geri verir) ---
+  // --- kart değişimi: iletilecek kartları seç (hepsi tek seferde, körlemesine) ---
+  // Veren, iletilen her kart için o renkteki en yüksek kartını geri verir; aynı renkten birden çok kart iletilirse
+  // sıradaki en yüksek kartlar gelir. Her renkte en düşük kartlardan başlayarak beklenen kazancı en yüksek olanları seçer.
   _pass(view) {
     const hand = view.hand;
+    const n = view.legal.count;
     const known = new Set(hand);
     if (view.discarded) for (const c of view.discarded) known.add(c);
-    let best = null;
+    const cands = [];
     for (const s of SUITS) {
-      const mine = hand.filter((c) => suitOf(c) === s);
-      if (!mine.length) continue;
-      const low = mine.reduce((a, c) => (rankOf(c) < rankOf(a) ? c : a));
+      const mine = hand.filter((c) => suitOf(c) === s).sort((a, b) => rankOf(a) - rankOf(b));
       const tops = [];
-      for (let r = 14; r >= 2 && tops.length < 2; r--) if (!known.has(s + r)) tops.push(r);
-      const expTop = tops.length ? 0.6 * tops[0] + 0.4 * (tops[1] != null ? tops[1] : tops[0]) : 0;
-      let gain = Math.max(0, expTop - rankOf(low));
-      gain += this.rng() * 0.5;
-      if (!best || gain > best.gain) best = { gain, card: low };
+      for (let r = 14; r >= 2; r--) if (!known.has(s + r)) tops.push(r);
+      mine.forEach((c, k) => {
+        const t0 = tops[k] != null ? tops[k] : 0;
+        const t1 = tops[k + 1] != null ? tops[k + 1] : t0;
+        const expTop = 0.6 * t0 + 0.4 * t1;
+        // k. en düşük kart, k+1. iletilen kart olarak gider; gelen kart de o renkteki k. en yüksek bilinmeyen karta yakın olur
+        cands.push({ card: c, k, gain: Math.max(0, expTop - rankOf(c)) + this.rng() * 0.5 });
+      });
     }
-    return best ? best.card : hand[0];
+    // aynı renkte düşük kartlar sırayla gitmeli: k. kart ancak (k-1). kart seçildiyse seçilebilir
+    const chosen = [];
+    const taken = {};
+    while (chosen.length < n) {
+      let best = null;
+      for (const c of cands) {
+        if ((taken[suitOf(c.card)] || 0) !== c.k) continue;
+        if (!best || c.gain > best.gain) best = c;
+      }
+      if (!best) break;
+      chosen.push(best.card);
+      taken[suitOf(best.card)] = (taken[suitOf(best.card)] || 0) + 1;
+    }
+    for (const c of hand) if (chosen.length < n && !chosen.includes(c)) chosen.push(c);
+    return chosen;
   }
 
   // --- el oynama ---
@@ -233,7 +251,7 @@ function randomAction(view, rng = Math.random) {
   switch (l.kind) {
     case 'discard': return { type: 'discard', cards: shuffle(view.hand, rng).slice(0, l.count) };
     case 'trump': return { type: 'trump', suit: pick(SUITS) };
-    case 'pass': return { type: 'pass', card: pick(view.hand) };
+    case 'pass': return { type: 'pass', cards: shuffle(view.hand, rng).slice(0, l.count) };
     case 'play': return { type: 'play', card: pick(l.cards) };
     default: return null;
   }

@@ -15,7 +15,7 @@ Aynı ağdaki başka cihazlar `http://<bilgisayar-ip>:3358` adresinden bağlanı
 - 3 oyuncu, 52 kart (A en yüksek), saat yönü. Her oyuncuya 16 kart, 4 kart kitty. Her el 16 el (hamle turu).
 - Hedefler: dağıtıcı **8**, solundaki **5**, sağındaki **3**. Her elden sonra dağıtıcı ve hedefler sola kayar (3→5→8→3). İlk dağıtıcı rastgele.
 - Her el şu sırayla işler:
-  1. Kart değişimi (ilk el hariç): 8'li elin hakkı varsa önce o ister; işlem en yüksek hedeflide başlar, en düşük hedeflide biter.
+  1. Kart değişimi (1., 4. ve 7. elde af: kimse kart alıp vermez): 8'li elin hakkı varsa önce o ister; işlem en yüksek hedeflide başlar, en düşük hedeflide biter.
   2. 8'li el (dağıtıcı) kozu belirler (herkese açık).
   3. Gömülecek 4 kartını seçer.
   4. Masadan 4 kapalı kartı (kitty) alır.
@@ -26,9 +26,12 @@ Aynı ağdaki başka cihazlar `http://<bilgisayar-ip>:3358` adresinden bağlanı
 
 ### Kart değişimi
 
-- Önceki elde hedefini aşan oyuncu, altında kalandan aştığı kadar kart ister.
+- **Af:** hedef döngüsünün ilk eli olan 1., 4. ve 7. elde kart değişimi yoktur (3 elde bir af).
+- Önceki elde hedefini aşan oyuncu, altında kalandan aştığı kadar kart ister. Örnek: +3 ile bitiren, eksi olanlardan toplam 3 kart ister.
 - Sıra yeni elin hedeflerine göre en yüksekten en düşüğe: önce 8 olan, sonra 5 olan, sonra 3 olan ister. Bir isteyenin iki vereni varsa onlar da yüksek hedeften düşüğe sıralanır.
-- İsteyen istemediği bir kartı iletir. Veren, o renkteki en yüksek kartını geri verir. O renkte kartı yoksa ya da en yüksek kartı iletilen karttan küçükse iletilen kart iade edilir.
+- **Tek seferde, körlemesine:** isteyen, istediği kartların hepsini tek hamlede iletir (iki vereni varsa ilk gruptaki kartlar ilk vereene, kalanlar ikinciye gider). Bir vereni dinleyip sonra diğerine göre kart seçmek yoktur; önce hepsi iletilir, sonra tüm verenler karşılığını verir.
+- Veren, iletilen her kart için o renkteki en yüksek kartını geri verir (iletilen kart da elinde sayılır). Aynı renkten birden çok kart iletildiyse sıradaki en yüksek kartlar gelir. O renkte kartı yoksa ya da daha yükseği yoksa iletilen kart iade edilir.
+- **Yerden gelen kart (kanıt, devir değil):** 8'li el yerdeki 4 kapalı kartı alınca, içinde kendisinden istenen bir seride diğer oyunculara verdiği kartlardan büyük kart varsa onu masada herkese açık gösterir ("Yerden geldi · ad"; hile yapmadığının kanıtı) ve günlüğe yazılır. Kart kimseye verilmez, 8'linin elinde kalır; kart değişimi yer kartlarına dokunmaz. Gösterim ilk el boyunca masada durur. İstenen renk dışındaki ya da verdiğinden küçük yer kartları gösterilmez.
 - Kartlar üçüncü oyuncuya gösterilmez.
 
 ## Altyapı kararları

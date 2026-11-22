@@ -6,8 +6,12 @@ const HAND_SIZE = 16;
 const DISCARD_COUNT = 4;
 
 // Faz sırası (her el):
-//  exchange : (ilk el hariç) hedefi aşanlar, altında kalanlardan kart ister; en yüksek hedefliden en düşüğe.
-//             Tüm kart alma-verme işlemleri koz belirlenmeden ÖNCE biter.
+//  exchange : hedefi aşanlar, altında kalanlardan aştığı kadar kart ister; en yüksek hedefliden en düşüğe.
+//             Bir isteyen tüm kartlarını tek seferde, körlemesine iletir; sonra tüm verenler karşılığını verir.
+//             İlk el ve her 3 elde bir (4. ve 7. el) af: kart değişimi yoktur.
+//             Tüm kart alma-verme işlemleri koz belirlenmeden ÖNCE biter; 8'li el yerdeki 4 kartı henüz almamıştır.
+//             8'li el yerdeki 4 kartı alınca, kendisinden istenen bir seride diğerlerine verdiğinden büyük kart varsa
+//             onu masada herkese "yerden geldi" diye gösterir (floorShow olayı); kart kimseye verilmez, onda kalır.
 //  trump    : 8'li el (dağıtıcı) kozu belirler (herkese açık)
 //  discard  : 8'li el 4 kartı gömer, ardından masadaki 4 kapalı kartı (kitty) otomatik alır
 //  play     : 16 el oynanır; her el sonrası trickEnd
@@ -37,6 +41,8 @@ class Game {
     const deck = C.shuffle(C.makeDeck(), this.rng);
     this.hands = [0, 1, 2].map((i) => C.sortHand(deck.slice(i * HAND_SIZE, (i + 1) * HAND_SIZE)));
     this.kitty = deck.slice(3 * HAND_SIZE);
+    this.floorReveals = []; // 8'li yeri alınca masada herkese gösterilen kartlar (hile yok kanıtı)
+    this.dealerGave = {}; // 8'linin kart değişiminde diğerlerine verdiği en yüksek kart (renk -> değer)
     this.discarded = [];
     this.trump = null;
     this.trumpRevealed = false;
@@ -46,12 +52,14 @@ class Game {
     this.lastTrick = null;
     this.history = [];
     this.trickNo = 1;
-    this.exchange = { steps: this.prevDiffs ? R.exchangePlan(this.prevDiffs, this.dealer) : [], idx: 0 };
+    // af: 1., 4. ve 7. elde kimse kart alıp vermez (hedef döngüsünün ilk eli)
+    const amnesty = this.handNo % 3 === 1;
+    this.exchange = { steps: this.prevDiffs && !amnesty ? R.exchangePlan(this.prevDiffs, this.dealer) : [], idx: 0 };
     this.phase = this.exchange.steps.length ? 'exchange' : 'trump';
     this.turn = this.dealer;
-    this._emit({ type: 'dealt', hand: this.handNo, total: this.totalHands, dealer: this.dealer, targets: this.targets.slice() });
+    this._emit({ type: 'dealt', hand: this.handNo, total: this.totalHands, dealer: this.dealer, targets: this.targets.slice(), amnesty: amnesty && this.handNo > 1 });
     if (this.exchange.steps.length) {
-      this._emit({ type: 'exchangeStart', steps: this.exchange.steps.map((s) => ({ asker: s.asker, giver: s.giver, count: s.count })) });
+      this._emit({ type: 'exchangeStart', steps: this.exchange.steps.map((s) => ({ asker: s.asker, givers: s.givers.map((x) => ({ seat: x.seat, count: x.count })), count: s.count })) });
     }
   }
 
@@ -72,7 +80,7 @@ class Game {
       case 'trump': return { kind: 'trump', suits: C.SUITS.slice() };
       case 'exchange': {
         const st = this.exchange.steps[this.exchange.idx];
-        return { kind: 'pass', giver: st.giver, remaining: st.count - st.done };
+        return { kind: 'pass', count: st.count, givers: st.givers.map((x) => ({ seat: x.seat, count: x.count })) };
       }
       case 'play': {
         const led = this.trick.length ? C.suitOf(this.trick[0].card) : null;
@@ -105,10 +113,15 @@ class Game {
     const hand = this.hands[seat];
     if (!cards.every((c) => hand.includes(c))) return { ok: false, error: 'Kart elinde değil' };
     const rest = hand.filter((c) => !cards.includes(c));
+    // kendisinden istenen bir seride, verdiği kartlardan büyük kart yerden geldiyse masada herkese gösterilir
+    // (hile yapmadığının kanıtı); kart diğer oyunculara verilmez, 8'linin elinde kalır
+    this.floorReveals = this.kitty.filter((c) => this.dealerGave[C.suitOf(c)] !== undefined && C.rankOf(c) > this.dealerGave[C.suitOf(c)])
+      .map((c) => ({ seat, card: c }));
     this.hands[seat] = C.sortHand(rest.concat(this.kitty));
     this.discarded = cards.slice();
     this.kitty = [];
     this._emit({ type: 'discarded', seat });
+    for (const r of this.floorReveals) this._emit({ type: 'floorShow', seat, card: r.card });
     this._beginPlay();
     return { ok: true };
   }
@@ -123,21 +136,39 @@ class Game {
     return { ok: true };
   }
 
+  // İsteyen, kartlarının hepsini tek seferde iletir (cards dizisi: ilk gruptaki kartlar ilk vereene, sonrakiler sıradaki vereene).
+  // Veren oyuncular, kartları görmeden önce hiçbir şey almamış olur; iadeler hepsi bittikten sonra uygulanır.
   _pass(seat, a) {
     if (this.phase !== 'exchange') return { ok: false, error: 'Şu an kart değişimi yok' };
     const ex = this.exchange;
     const st = ex.steps[ex.idx];
+    const cards = a.cards;
+    if (!Array.isArray(cards) || cards.length !== st.count) return { ok: false, error: st.count + ' kart seçmelisin' };
+    if (new Set(cards).size !== cards.length) return { ok: false, error: 'Aynı kart iki kez seçilemez' };
     const hand = this.hands[seat];
-    if (!hand.includes(a.card)) return { ok: false, error: 'Kart elinde değil' };
-    const giverHand = this.hands[st.giver];
-    const ret = R.exchangeReturnCard(giverHand, a.card);
-    if (ret !== a.card) {
-      this.hands[seat] = C.sortHand(hand.filter((c) => c !== a.card).concat(ret));
-      this.hands[st.giver] = C.sortHand(giverHand.filter((c) => c !== ret).concat(a.card));
+    if (!cards.every((c) => hand.includes(c))) return { ok: false, error: 'Kart elinde değil' };
+    let askerHand = hand.filter((c) => !cards.includes(c));
+    let at = 0;
+    const evs = [];
+    for (const gv of st.givers) {
+      const passed = cards.slice(at, at + gv.count);
+      at += gv.count;
+      const giverHand = this.hands[gv.seat];
+      const returned = R.exchangeReturns(giverHand, passed);
+      this.hands[gv.seat] = C.sortHand(giverHand.filter((c) => !returned.includes(c)).concat(passed.filter((c) => !returned.includes(c))));
+      askerHand = askerHand.concat(returned);
+      // 8'li elin (dağıtıcı) kendisinden istenen serilerde verdiği en yüksek kart: yer kartlarıyla kıyaslamak için tutulur
+      if (gv.seat === this.dealer) {
+        for (const c of returned) {
+          const s = C.suitOf(c);
+          if (this.dealerGave[s] === undefined || C.rankOf(c) > this.dealerGave[s]) this.dealerGave[s] = C.rankOf(c);
+        }
+      }
+      evs.push({ type: 'exchangePass', asker: seat, giver: gv.seat, passed, returned, private: [seat, gv.seat] });
     }
-    st.done++;
-    this._emit({ type: 'exchangePass', asker: seat, giver: st.giver, passed: a.card, returned: ret, n: st.done, count: st.count, private: [seat, st.giver] });
-    if (st.done >= st.count) ex.idx++;
+    this.hands[seat] = C.sortHand(askerHand);
+    for (const e of evs) this._emit(e);
+    ex.idx++;
     if (ex.idx >= ex.steps.length) this.phase = 'trump';
     return { ok: true };
   }
@@ -232,10 +263,11 @@ class Game {
       tricksWon: this.tricksWon.slice(),
       trump: this.trump,
       discarded: isDealer ? this.discarded.slice() : null,
+      floor: { count: this.kitty.length, reveals: this.floorReveals.map((r) => ({ seat: r.seat, card: r.card })) },
       exchange: {
-        steps: ex.steps.map((s) => ({ asker: s.asker, giver: s.giver, count: s.count, done: s.done })),
+        steps: ex.steps.map((s) => ({ asker: s.asker, givers: s.givers.map((x) => ({ seat: x.seat, count: x.count })), count: s.count })),
         idx: ex.idx,
-        current: cur ? { asker: cur.asker, giver: cur.giver, count: cur.count, remaining: cur.count - cur.done } : null,
+        current: cur ? { asker: cur.asker, givers: cur.givers.map((x) => ({ seat: x.seat, count: x.count })), count: cur.count } : null,
       },
       totals: this.totals.slice(),
       results: this.results,

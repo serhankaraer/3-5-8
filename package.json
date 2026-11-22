@@ -8,7 +8,7 @@
     "start": "node packages/server/index.js",
     "sim": "node test/simulate.js",
     "e2e": "node test/e2e.js",
-    "test": "node test/simulate.js 30 12 && node test/e2e.js"
+    "test": "node test/exchange.js && node test/simulate.js 30 12 && node test/e2e.js"
   },
   "engines": {
     "node": ">=22"

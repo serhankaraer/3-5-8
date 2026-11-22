@@ -311,6 +311,7 @@ class Room {
       switch (ev.type) {
         case 'dealt':
           this._say(`El ${ev.hand}/${ev.total} dağıtıldı. 8: ${n(ev.dealer)}, 5: ${n((ev.dealer + 1) % 3)}, 3: ${n((ev.dealer + 2) % 3)}.`);
+          if (ev.amnesty) this._say('Üç elde bir af: bu elde kart alma-verme yok.');
           break;
         case 'trumpChosen':
           this._say(`${n(ev.seat)} kozu belirledi: ${SUIT_SYMBOLS[ev.suit]} ${SUIT_NAMES[ev.suit]}.`);
@@ -319,26 +320,19 @@ class Room {
           this._say(`${n(ev.seat)} 4 kart gömdü ve masadan 4 kapalı kart aldı.`);
           break;
         case 'exchangeStart':
-          for (const st of ev.steps) this._say(`${n(st.asker)}, ${n(st.giver)}'den ${st.count} kart istiyor.`);
+          for (const st of ev.steps) this._say(`${n(st.asker)}, ${st.givers.map((x) => `${n(x.seat)}'den ${x.count}`).join(' ve ')} kart istiyor (toplam ${st.count}).`);
           break;
         case 'exchangePass': {
-          const same = ev.passed === ev.returned;
-          this._say(
-            same
-              ? `${n(ev.giver)}'e ${cardLabel(ev.passed)} verdin; o renkte daha yüksek kartı yoktu, kart iade edildi.`
-              : `${n(ev.giver)}'e ${cardLabel(ev.passed)} verdin, ${cardLabel(ev.returned)} aldın.`,
-            [ev.asker]
-          );
-          this._say(
-            same
-              ? `${n(ev.asker)} sana ${cardLabel(ev.passed)} verdi; daha yüksek kartın olmadığı için iade ettin.`
-              : `${n(ev.asker)} sana ${cardLabel(ev.passed)} verdi, ${cardLabel(ev.returned)} kartını geri verdin.`,
-            [ev.giver]
-          );
+          const lab = (arr) => arr.map(cardLabel).join(', ');
+          this._say(`${n(ev.giver)}'e ${lab(ev.passed)} verdin, ${lab(ev.returned)} aldın.`, [ev.asker]);
+          this._say(`${n(ev.asker)} sana ${lab(ev.passed)} verdi, ${lab(ev.returned)} kartlarını geri verdin.`, [ev.giver]);
           const third = [0, 1, 2].find((x) => x !== ev.asker && x !== ev.giver);
-          this._say(`${n(ev.asker)} ile ${n(ev.giver)} kart değişti (${ev.n}/${ev.count}).`, [third]);
+          this._say(`${n(ev.asker)} ile ${n(ev.giver)} ${ev.passed.length} kart değişti.`, [third]);
           break;
         }
+        case 'floorShow':
+          this._say(`Yerden ${cardLabel(ev.card)} geldi: ${n(ev.seat)}'in kendisinden istenen seride verdiği kartlardan büyük. Hile yok, kart ondan başkasına verilmez.`);
+          break;
         case 'handEnd': {
           const parts = [0, 1, 2].map((s) => `${n(s)} ${ev.tricks[s]}/${ev.targets[s]} (${ev.diffs[s] > 0 ? '+' : ''}${ev.diffs[s]})`);
           this._say(`El ${ev.hand} bitti: ${parts.join(', ')}.`);
