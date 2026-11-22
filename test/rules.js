@@ -4,6 +4,7 @@ const assert = require('assert');
 const R = require('../packages/engine/rules');
 
 const L = (hand, trick, trump) => R.legalCards(hand, trick.map((card, i) => ({ seat: i, card })), trump).slice().sort();
+let eq0;
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b.slice().sort(), msg);
 
 // açan oyuncu: her kart serbest
@@ -31,5 +32,15 @@ eq(L(['H5', 'C12'], ['D8'], 'D'), ['H5', 'C12'], 'koz yoksa serbest');
 
 // el (trick) kazananı: koz kesen kazanır
 assert.strictEqual(R.trickWinner([{ seat: 0, card: 'S8' }, { seat: 1, card: 'D3' }, { seat: 2, card: 'S14' }], 'D'), 1);
+
+// koz kırılmadan koz ile el açılmaz; yalnızca kozun ası, papazı, kızı ile açılır
+const LEAD = (hand, trump, broken) => R.legalCards(hand, [], trump, broken).slice().sort();
+eq0 = (a, b, msg) => assert.deepStrictEqual(a, b.slice().sort(), msg);
+eq0(LEAD(['S5', 'D3', 'D12', 'D14', 'D9', 'D13', 'D11'], 'D', false), ['S5', 'D12', 'D13', 'D14'], 'kırılmadan: yan renk + koz A/K/Q');
+eq0(LEAD(['S5', 'D3', 'D9'], 'D', false), ['S5'], 'kırılmadan: küçük koz açılamaz');
+eq0(LEAD(['D3', 'D9'], 'D', false), ['D3', 'D9'], 'yalnızca koz kalmışsa her koz serbest');
+eq0(LEAD(['S5', 'D3', 'D9'], 'D', true), ['S5', 'D3', 'D9'], 'koz kırıldıktan sonra serbest');
+// kırılma durumu rengi uyma kurallarını etkilemez
+eq0(R.legalCards(['H5', 'D3'], [{ seat: 0, card: 'S8' }], 'D', false).slice().sort(), ['D3'], 'rengi yoksa koz atmak zorunlu (kırılmamış olsa da)');
 
 console.log('Oynama kuralı testleri OK');

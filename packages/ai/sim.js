@@ -31,14 +31,16 @@ function maxBy(arr, fn) { return minBy(arr, (c) => -fn(c)); }
 
 // Basit ama makul oyun politikası (botlar düşük ileri-hesapta bunu doğrudan kullanır,
 // örnekleme modunda ise herkesin "sonraki oyunu" bununla simüle edilir).
-function leadChoice(hand, trump, played) {
-  const nonTrump = hand.filter((c) => suitOf(c) !== trump);
+// allowed: kurallara göre açılabilecek kartlar (koz kırılmadan koz açılamaz); verilmezse elin tamamı
+function leadChoice(hand, trump, played, allowed) {
+  const pool = allowed || hand;
+  const nonTrump = pool.filter((c) => suitOf(c) !== trump);
   const masters = nonTrump.filter((c) => isMaster(c, hand, played));
   if (masters.length) {
     const len = (c) => hand.filter((x) => suitOf(x) === suitOf(c)).length;
     return maxBy(masters, (c) => len(c) * 20 + rankOf(c));
   }
-  const trumps = hand.filter((c) => suitOf(c) === trump);
+  const trumps = pool.filter((c) => suitOf(c) === trump);
   if (trumps.length) {
     let playedTrumps = 0;
     for (const c of played) if (suitOf(c) === trump) playedTrumps++;
@@ -51,15 +53,15 @@ function leadChoice(hand, trump, played) {
     // en kısa renkten en küçük kart (renk açmaya çalış)
     return minBy(nonTrump, (c) => len(suitOf(c)) * 100 + rankOf(c));
   }
-  return minBy(hand, rankOf);
+  return minBy(pool, rankOf);
 }
 
 function policy(seat, st) {
   const hand = st.hands[seat];
   if (hand.length === 1) return hand[0];
-  if (st.trick.length === 0) return leadChoice(hand, st.trump, st.played);
-  const legal = R.legalCards(hand, st.trick, st.trump);
+  const legal = R.legalCards(hand, st.trick, st.trump, st.broken);
   if (legal.length === 1) return legal[0];
+  if (st.trick.length === 0) return leadChoice(hand, st.trump, st.played, legal);
   let best = st.trick[0].card;
   for (let i = 1; i < st.trick.length; i++) {
     if (R.cardBeats(st.trick[i].card, best, st.trump)) best = st.trick[i].card;
@@ -69,7 +71,7 @@ function policy(seat, st) {
   return minBy(legal, (c) => strength(c, st.trump));
 }
 
-// st = { hands:[h0,h1,h2], trump, trick:[{seat,card}], turn, tricks:[a,b,c], played:Set }
+// st = { hands:[h0,h1,h2], trump, broken, trick:[{seat,card}], turn, tricks:[a,b,c], played:Set }
 function rollout(st) {
   const hands = st.hands;
   for (;;) {
@@ -88,6 +90,7 @@ function rollout(st) {
     const card = policy(seat, st);
     hand.splice(hand.indexOf(card), 1);
     st.trick.push({ seat, card });
+    if (suitOf(card) === st.trump) st.broken = true;
     st.turn = (seat + 1) % 3;
   }
   return st.tricks;

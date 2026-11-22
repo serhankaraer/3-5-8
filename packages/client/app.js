@@ -186,65 +186,81 @@
 
   function cardsTxt(list) { return list.map(cardText).join(' '); }
 
-  function playFx(grp, done) {
-    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var ctr = document.querySelector('.center');
-    if (document.hidden || reduce || !ctr || !grp.every(function (r) { return seatEl(r.asker) && seatEl(r.giver); })) { done(); return; }
-    var layer = document.getElementById('fx');
-    if (!layer) { layer = h('div', { id: 'fx' }); document.body.appendChild(layer); }
-    layer.textContent = '';
-    var asker = grp[0].asker;
-    var cr = ctr.getBoundingClientRect();
-    var banner = h('div', { class: 'fxbanner' });
-    banner.style.top = (cr.top + 4) + 'px';
-    layer.appendChild(banner);
+  function playFx(grp, done0) {
+    var finished = false;
+    var layer = null;
     var els = [];
-
-    function center(seat) {
-      var r = seatEl(seat).getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    function done() {
+      if (finished) return;
+      finished = true;
+      try { if (layer) layer.textContent = ''; } catch (e) { /* yoksay */ }
+      done0();
     }
-    // her isteyen-veren çifti için kartları bir noktadan diğerine uçur
-    function fly(fromSeat, toSeat, cards, known, delay) {
-      var a = center(fromSeat), b = center(toSeat);
-      var n = cards.length;
-      cards.forEach(function (c, i) {
-        var wrap = h('div', { class: 'pcard fxcard' }, known ? cardEl(c) : h('div', { class: 'fxback' }));
-        var off = (i - (n - 1) / 2) * 16;
-        wrap.style.left = (a.x + off) + 'px';
-        wrap.style.top = a.y + 'px';
-        layer.appendChild(wrap);
-        els.push(wrap);
-        wrap.animate([
-          { transform: 'translate(-50%,-50%) scale(0.6)', opacity: 0 },
-          { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0.12 },
-          { transform: 'translate(calc(-50% + ' + (b.x - a.x) + 'px), calc(-50% + ' + (b.y - a.y) + 'px)) scale(1)', opacity: 1 },
-        ], { duration: 700, delay: delay || 0, easing: 'ease-in-out', fill: 'both' });
-      });
-    }
-    function clear() { els.forEach(function (e) { e.remove(); }); els = []; }
-
-    var asks = grp.map(function (r) { return nm(r.giver) + '\'den ' + r.n; }).join(' ve ');
-    banner.textContent = nm(asker) + ', ' + asks + ' kart istiyor';
-    var known = grp.every(function (r) { return r.passed; });
-    setTimeout(function () {
-      grp.forEach(function (r, k) { fly(r.asker, r.giver, r.passed || new Array(r.n).fill(''), !!r.passed, k * 120); });
-      banner.textContent = known
-        ? nm(asker) + ' verdi: ' + grp.map(function (r) { return nm(r.giver) + ' ← ' + cardsTxt(r.passed); }).join(' · ')
-        : nm(asker) + ' kartlarını iletti';
-    }, 550);
-    setTimeout(function () {
-      clear();
-      grp.forEach(function (r, k) { fly(r.giver, r.asker, r.returned || new Array(r.n).fill(''), !!r.returned, k * 120); });
-      banner.textContent = known
-        ? grp.map(function (r) { return nm(r.giver) + ' → ' + nm(r.asker) + ': ' + cardsTxt(r.returned); }).join(' · ')
-        : 'Verenler karşılığını iade etti';
-    }, 550 + 950);
-    setTimeout(function () {
-      clear();
+    // ne olursa olsun kuyruk kilitlenmesin
+    setTimeout(done, 5000);
+    try {
+      var ctr = document.querySelector('.center');
+      if (document.hidden || !ctr || !grp.every(function (r) { return seatEl(r.asker) && seatEl(r.giver); })) { done(); return; }
+      var me = S.you;
+      var who = function (seat) { return seat === me ? 'Sen' : nm(seat); };
+      var mine = grp.some(function (r) { return r.asker === me || r.giver === me; });
+      layer = document.getElementById('fx');
+      if (!layer) { layer = h('div', { id: 'fx' }); document.body.appendChild(layer); }
       layer.textContent = '';
+      var asker = grp[0].asker;
+      var cr = ctr.getBoundingClientRect();
+      var banner = h('div', { class: 'fxbanner' + (mine ? ' mine' : '') });
+      banner.style.top = (cr.top + 4) + 'px';
+      layer.appendChild(banner);
+
+      var center = function (seat) {
+        var r = seatEl(seat).getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      };
+      // kartları bir oyuncudan diğerine uçur (kartlar bilinmiyorsa kapalı gösterilir)
+      var fly = function (fromSeat, toSeat, cards, known, delay) {
+        var a1 = center(fromSeat), b1 = center(toSeat);
+        var n = cards.length;
+        cards.forEach(function (c, i) {
+          var wrap = h('div', { class: 'pcard fxcard' }, known ? cardEl(c) : h('div', { class: 'fxback' }));
+          wrap.style.left = (a1.x + (i - (n - 1) / 2) * 16) + 'px';
+          wrap.style.top = a1.y + 'px';
+          layer.appendChild(wrap);
+          els.push(wrap);
+          wrap.animate([
+            { transform: 'translate(-50%,-50%) scale(0.6)', opacity: 0 },
+            { transform: 'translate(-50%,-50%) scale(1)', opacity: 1, offset: 0.12 },
+            { transform: 'translate(calc(-50% + ' + (b1.x - a1.x) + 'px), calc(-50% + ' + (b1.y - a1.y) + 'px)) scale(1)', opacity: 1 },
+          ], { duration: 700, delay: delay || 0, easing: 'ease-in-out', fill: 'both' });
+        });
+      };
+      var clear = function () { els.forEach(function (e) { e.remove(); }); els = []; };
+      var txt = function (list, n) { return list ? cardsTxt(list) : n + ' kapalı kart'; };
+
+      // 1) istek
+      var asks = grp.map(function (r) { return (r.giver === me ? 'senden ' : ek(nm(r.giver), 'abl') + ' ') + r.n; }).join(' ve ');
+      banner.textContent = asker === me
+        ? 'Sen ' + grp.map(function (r) { return ek(nm(r.giver), 'abl') + ' ' + r.n; }).join(' ve ') + ' kart istedin'
+        : nm(asker) + ', ' + asks + ' kart istiyor';
+      // 2) isteyen kartlarını verir
+      setTimeout(function () {
+        try {
+          grp.forEach(function (r, k) { fly(r.asker, r.giver, r.passed || new Array(r.n).fill(''), !!r.passed, k * 120); });
+          banner.textContent = who(asker) + ' verdi: ' + grp.map(function (r) { return who(r.giver) + ' ← ' + txt(r.passed, r.n); }).join(' · ');
+        } catch (e) { done(); }
+      }, 600);
+      // 3) verenler karşılığını iade eder
+      setTimeout(function () {
+        try {
+          clear();
+          grp.forEach(function (r, k) { fly(r.giver, r.asker, r.returned || new Array(r.n).fill(''), !!r.returned, k * 120); });
+          banner.textContent = grp.map(function (r) { return who(r.giver) + ' → ' + who(r.asker) + ': ' + txt(r.returned, r.n); }).join(' · ');
+        } catch (e) { done(); }
+      }, 600 + 1000);
+      setTimeout(function () { clear(); done(); }, 600 + 1000 + 1300);
+    } catch (e) {
       done();
-    }, 550 + 950 + 1100);
+    }
   }
 
   // elde yeni gelen kartlar: değişimde alınanlar ve 8'linin yerden aldıkları (ilk karta kadar işaretli)
@@ -280,6 +296,22 @@
   }
 
   // ---------- yardımcılar ----------
+  function trSuffix(name, kind) {
+    var lower = String(name).toLocaleLowerCase('tr');
+    var vowels = 'aeıioöuü';
+    var last = '';
+    for (var i = lower.length - 1; i >= 0; i--) if (vowels.indexOf(lower.charAt(i)) >= 0) { last = lower.charAt(i); break; }
+    var back = 'aıou'.indexOf(last) >= 0 && last !== '';
+    var ch = lower.charAt(lower.length - 1);
+    var endsVowel = vowels.indexOf(ch) >= 0;
+    var voiceless = 'çfhkpsşt'.indexOf(ch) >= 0;
+    if (kind === 'abl') return (voiceless ? 't' : 'd') + (back ? 'an' : 'en');
+    if (kind === 'dat') return (endsVowel ? 'y' : '') + (back ? 'a' : 'e');
+    var v = 'aı'.indexOf(last) >= 0 && last !== '' ? 'ı' : ('ou'.indexOf(last) >= 0 && last !== '' ? 'u' : ('öü'.indexOf(last) >= 0 && last !== '' ? 'ü' : 'i'));
+    return endsVowel ? 'n' + v + 'n' : v + 'n';
+  }
+  // isme ünlü uyumuna göre ek: "Serhan'dan", "Kerem'den", "Ayşe'ye", "Ali'nin"
+  function ek(name, kind) { return name + '\'' + trSuffix(name, kind); }
   function nm(i) { return S.room && S.room.seats[i] ? S.room.seats[i].name : '?'; }
   function relPos(i) { return (i - S.you + 3) % 3; }
 
@@ -433,15 +465,16 @@
           if (passCards().length >= c.count) return 'Kartlar hazır: ilet';
           var gi = activeGiverIdx();
           var gv = c.givers[gi];
-          if (c.givers.length === 1) return nm(gv.seat) + '\'den ' + gv.count + ' kart iste: ' + gv.count + ' kart seç (' + assignedTo(gv.seat).length + '/' + gv.count + ')';
-          return nm(gv.seat) + '\'den ' + gv.count + ' kart iste: seç (' + assignedTo(gv.seat).length + '/' + gv.count + ')';
+          if (c.givers.length === 1) return ek(nm(gv.seat), 'abl') + ' ' + gv.count + ' kart iste: ' + gv.count + ' kart seç (' + assignedTo(gv.seat).length + '/' + gv.count + ')';
+          return ek(nm(gv.seat), 'abl') + ' ' + gv.count + ' kart iste: seç (' + assignedTo(gv.seat).length + '/' + gv.count + ')';
         }
         var mine = c.givers.filter(function (x) { return x.seat === me; })[0];
         if (mine) return nm(c.asker) + ' senden ' + mine.count + ' kart istiyor…';
         return nm(c.asker) + ' kart değişimi yapıyor…';
       }
       case 'play':
-        return g.actor === me ? 'Sıra sende' : nm(g.actor) + ' oynuyor…';
+        if (g.actor === me) return !g.trick.length && g.trump && !g.trumpBroken ? 'Sıra sende · koz kırılmadı: koz yalnızca A, K, Q ile açılır' : 'Sıra sende';
+        return nm(g.actor) + ' oynuyor…';
       case 'trickEnd':
         return nm(trickWinner(g.trick, g.trump)) + ' eli alıyor';
       default: return '';
@@ -454,7 +487,7 @@
     var opp1 = (me + 1) % 3;
     var opp2 = (me + 2) % 3;
 
-    var trumpPill = g.trump ? 'Koz: ' + SYM[g.trump] + ' ' + SUIT_NAME[g.trump] : 'Koz: seçilmedi';
+    var trumpPill = g.trump ? 'Koz: ' + SYM[g.trump] + ' ' + SUIT_NAME[g.trump] + ((g.phase === 'play' || g.phase === 'trickEnd') && !g.trumpBroken ? ' · kırılmadı' : '') : 'Koz: seçilmedi';
 
     var winner = g.phase === 'trickEnd' ? trickWinner(g.trick, g.trump) : -1;
     var slots = g.trick.map(function (p) {
@@ -522,7 +555,7 @@
         slotsEl.appendChild(c ? pcard(c, 'g' + gi, (function (cc) { return function () { onHandClick(cc); }; })(c)) : h('div', { class: 'pcard empty' }, '?'));
       }
       wrap.appendChild(h('div', { class: 'giverpanel g' + gi },
-        h('div', { class: 'gtitle' }, nm(gv.seat) + '\'den ' + gv.count + ' kart iste'),
+        h('div', { class: 'gtitle' }, ek(nm(gv.seat), 'abl') + ' ' + gv.count + ' kart iste'),
         slotsEl,
         h('small', null, 'Kartları körlemesine ver; karşılığını hepsi iletildikten sonra alırsın')));
     }

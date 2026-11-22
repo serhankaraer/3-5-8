@@ -212,7 +212,7 @@ class Bot {
     if (foresight < 10) {
       const hands = [[], [], []];
       hands[me] = view.hand.slice();
-      return S.policy(me, { hands, trump, trick: view.trick, played });
+      return S.policy(me, { hands, trump, broken: !!view.trumpBroken, trick: view.trick, played });
     }
     const n = 3 + Math.round((foresight / 100) * 20);
     const pool = this._pool(view);
@@ -231,7 +231,7 @@ class Bot {
         hands[opp[0]] = oh[opp[0]].slice();
         hands[opp[1]] = oh[opp[1]].slice();
         const st = {
-          hands, trump,
+          hands, trump, broken: !!view.trumpBroken || suitOf(c) === trump,
           trick: view.trick.map((p) => ({ seat: p.seat, card: p.card })).concat([{ seat: me, card: c }]),
           turn: (me + 1) % 3, tricks: view.tricksWon.slice(), played: new Set(played),
         };

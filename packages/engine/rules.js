@@ -13,9 +13,17 @@ function targetFor(seat, dealer) {
 // Kurallar: açılan renkte kartın varsa onu atmak zorundasın; o renkte masadaki en yüksek kartı geçebiliyorsan geçmek zorundasın.
 // Rengin yoksa ve kozun varsa koz atmak zorundasın (masada koz varsa ve ondan büyük kozun varsa büyütmek zorundasın).
 // Hem rengin hem kozun yoksa her kart serbest.
-// trick: masadaki [{seat, card}] (açan ilk); trump: koz rengi.
-function legalCards(hand, trick, trump) {
-  if (!trick || !trick.length) return hand.slice();
+// Koz kırılmadan (bu elde masaya henüz koz atılmadan) koz ile el açılamaz; yalnızca kozun ası, papazı ve kızı ile açılabilir.
+// Elinde koz dışında kart kalmamışsa (yalnızca koz) açmak zorunda olduğu için her koz serbesttir.
+// trick: masadaki [{seat, card}] (açan ilk); trump: koz rengi; broken: koz kırıldı mı.
+const TRUMP_LEAD_MIN = 12; // kız (Q=12), papaz (K=13), as (A=14)
+function legalCards(hand, trick, trump, broken) {
+  if (!trick || !trick.length) {
+    if (!trump || broken) return hand.slice();
+    const side = hand.filter((c) => suitOf(c) !== trump);
+    if (!side.length) return hand.slice();
+    return side.concat(hand.filter((c) => suitOf(c) === trump && rankOf(c) >= TRUMP_LEAD_MIN));
+  }
   const led = suitOf(trick[0].card);
   let best = trick[0].card;
   for (let i = 1; i < trick.length; i++) if (cardBeats(trick[i].card, best, trump)) best = trick[i].card;
@@ -105,4 +113,4 @@ function exchangeReturns(giverHand, passed) {
   return out;
 }
 
-module.exports = { nextSeat, targetFor, legalCards, cardBeats, trickWinner, exchangePlan, exchangeReturns };
+module.exports = { TRUMP_LEAD_MIN, nextSeat, targetFor, legalCards, cardBeats, trickWinner, exchangePlan, exchangeReturns };

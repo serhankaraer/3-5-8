@@ -2,6 +2,34 @@
 // Botlarla tam oyun simülasyonu: kural bütünlüğü ve bot sağlamlığı testi.
 const assert = require('assert');
 const { Game } = require('../packages/engine');
+
+
+// Bağımsız hakem: şartnamedeki oynama kuralları (rules.js'ten ayrı, sade yazıldı).
+function oracle(hand, trick, trump, broken) {
+  const suit = (c) => c[0];
+  const rank = (c) => Number(c.slice(1));
+  if (!trick.length) {
+    if (broken || hand.every((c) => suit(c) === trump)) return hand.slice();
+    return hand.filter((c) => suit(c) !== trump || rank(c) >= 12); // koz kırılmadan koz yalnızca as, papaz, kız ile açılır
+  }
+  const led = suit(trick[0].card);
+  let win = trick[0].card;
+  for (const { card } of trick.slice(1)) {
+    const beats = suit(card) === suit(win) ? rank(card) > rank(win) : suit(card) === trump;
+    if (beats) win = card;
+  }
+  const mustBeat = (cands) => {
+    const up = cands.filter((c) => suit(c) === suit(win) && rank(c) > rank(win));
+    return up.length ? up : cands;
+  };
+  const ofLed = hand.filter((c) => suit(c) === led);
+  if (ofLed.length) return suit(win) === led ? mustBeat(ofLed) : ofLed;
+  const tr = hand.filter((c) => suit(c) === trump);
+  if (tr.length) return suit(win) === trump ? mustBeat(tr) : tr;
+  return hand.slice();
+}
+let brokenOracle = false;
+const playStats = { checked: 0, trumpForced: 0, leadRestricted: 0 };
 const { Bot, genTraits, NAMES, TRAITS } = require('../packages/ai');
 
 // tekrarlanabilir rastgelelik
@@ -32,6 +60,7 @@ function playGame(seed, traitsList) {
   const rng = mulberry32(seed);
   const g = new Game({ rng });
   g.drainEvents();
+  brokenOracle = false;
   const bots = [0, 1, 2].map((s) => new Bot({ seat: s, traits: traitsList ? traitsList[s] : genTraits(rng), rng }));
   const stats = { exchanges: 0, gain: 0, hands: 0, steps: 0 };
   let trumpSeen = false;
@@ -59,8 +88,19 @@ function playGame(seed, traitsList) {
         else assert.strictEqual(v.trump, g.trump, 'koz seçildikten sonra herkese açık olmalı');
         assert.strictEqual(v.hand.length, g.hands[s].length);
       }
+      let exp = null;
+      if (g.phase === 'play') {
+        exp = oracle(g.hands[seat], g.trick, g.trump, brokenOracle);
+        assert.deepStrictEqual(view.legal.cards.slice().sort(), exp.slice().sort(), 'legal kartlar kurala uymalı');
+        const bad = g.hands[seat].find((c) => !exp.includes(c));
+        if (bad) assert(!g.act(seat, { type: 'play', card: bad }).ok, 'kurala aykırı kart reddedilmeli: ' + bad);
+        playStats.checked++;
+        if (g.trick.length && !g.hands[seat].some((c) => c[0] === g.trick[0].card[0]) && g.hands[seat].some((c) => c[0] === g.trump)) playStats.trumpForced++;
+        if (!g.trick.length && exp.length < g.hands[seat].length) playStats.leadRestricted++;
+      }
       const action = bots[seat].decide(view);
       assert(action, 'bot hamle üretmedi: ' + g.phase);
+      if (exp) assert(exp.includes(action.card), 'bot kurala aykırı kart seçti: ' + action.card);
       res = g.act(seat, action);
       assert(res.ok, `geçersiz hamle (${g.phase}): ${res.error} ${JSON.stringify(action)}`);
       stats.steps++;
@@ -73,6 +113,8 @@ function playGame(seed, traitsList) {
         void dealer;
       }
       if (ev.type === 'trumpChosen') trumpSeen = true;
+      if (ev.type === 'dealt') brokenOracle = false;
+      if (ev.type === 'play' && ev.card[0] === g.trump) brokenOracle = true;
       if (ev.type === 'dealt') handNoNow = ev.hand;
       if (ev.type === 'exchangeStart') {
         assert(handNoNow % 3 !== 1, 'af: 1., 4. ve 7. elde kart değişimi olmamalı (el ' + handNoNow + ')');
@@ -136,6 +178,7 @@ for (let i = 1; i <= N; i++) {
   if (g.winners.length > 1) ties++;
 }
 const ms = Date.now() - t0;
+console.log(`Oynama kuralı denetimi: ${playStats.checked} hamle hakemle eşleşti (rengi yokken koz zorunlu: ${playStats.trumpForced}, koz kırılmadan açış kısıtlı: ${playStats.leadRestricted})`);
 console.log(`OK: ${N} oyun, ${hands} el, ${ex} kart değişimi (ort. kazanç ${(gain / Math.max(1, ex)).toFixed(2)} sıra), ortak galibiyet: ${ties}, ${(ms / N).toFixed(0)} ms/oyun`);
 
 // Güç kontrolü: ileri hesabı yüksek bot, zayıfa karşı daha çok kazanmalı

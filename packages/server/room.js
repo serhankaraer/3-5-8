@@ -1,4 +1,20 @@
 'use strict';
+function trSuffix(name, kind) {
+  var lower = String(name).toLocaleLowerCase('tr');
+  var vowels = 'aeıioöuü';
+  var last = '';
+  for (var i = lower.length - 1; i >= 0; i--) if (vowels.indexOf(lower.charAt(i)) >= 0) { last = lower.charAt(i); break; }
+  var back = 'aıou'.indexOf(last) >= 0 && last !== '';
+  var ch = lower.charAt(lower.length - 1);
+  var endsVowel = vowels.indexOf(ch) >= 0;
+  var voiceless = 'çfhkpsşt'.indexOf(ch) >= 0;
+  if (kind === 'abl') return (voiceless ? 't' : 'd') + (back ? 'an' : 'en');
+  if (kind === 'dat') return (endsVowel ? 'y' : '') + (back ? 'a' : 'e');
+  var v = 'aı'.indexOf(last) >= 0 && last !== '' ? 'ı' : ('ou'.indexOf(last) >= 0 && last !== '' ? 'u' : ('öü'.indexOf(last) >= 0 && last !== '' ? 'ü' : 'i'));
+  return endsVowel ? 'n' + v + 'n' : v + 'n';
+}
+// isme ünlü uyumuna göre ek: "Serhan'dan", "Kerem'den", "Ayşe'ye", "Ali'nin"
+function ek(name, kind) { return name + '\'' + trSuffix(name, kind); }
 const crypto = require('crypto');
 const { Game } = require('../engine');
 const { cardLabel, SUIT_NAMES, SUIT_SYMBOLS } = require('../engine/cards');
@@ -320,18 +336,18 @@ class Room {
           this._say(`${n(ev.seat)} 4 kart gömdü ve masadan 4 kapalı kart aldı.`);
           break;
         case 'exchangeStart':
-          for (const st of ev.steps) this._say(`${n(st.asker)}, ${st.givers.map((x) => `${n(x.seat)}'den ${x.count}`).join(' ve ')} kart istiyor (toplam ${st.count}).`);
+          for (const st of ev.steps) this._say(`${n(st.asker)}, ${st.givers.map((x) => `${ek(n(x.seat), 'abl')} ${x.count}`).join(' ve ')} kart istiyor (toplam ${st.count}).`);
           break;
         case 'exchangePass': {
           const lab = (arr) => arr.map(cardLabel).join(', ');
-          this._say(`${n(ev.giver)}'e ${lab(ev.passed)} verdin, ${lab(ev.returned)} aldın.`, [ev.asker]);
+          this._say(`${ek(n(ev.giver), 'dat')} ${lab(ev.passed)} verdin, ${lab(ev.returned)} aldın.`, [ev.asker]);
           this._say(`${n(ev.asker)} sana ${lab(ev.passed)} verdi, ${lab(ev.returned)} kartlarını geri verdin.`, [ev.giver]);
           const third = [0, 1, 2].find((x) => x !== ev.asker && x !== ev.giver);
           this._say(`${n(ev.asker)} ile ${n(ev.giver)} ${ev.passed.length} kart değişti.`, [third]);
           break;
         }
         case 'floorShow':
-          this._say(`Yerden ${cardLabel(ev.card)} geldi: ${n(ev.seat)}'in kendisinden istenen seride verdiği kartlardan büyük. Hile yok, kart ondan başkasına verilmez.`);
+          this._say(`Yerden ${cardLabel(ev.card)} geldi: ${ek(n(ev.seat), 'gen')} kendisinden istenen seride verdiği kartlardan büyük. Hile yok, kart ondan başkasına verilmez.`);
           break;
         case 'handEnd': {
           const parts = [0, 1, 2].map((s) => `${n(s)} ${ev.tricks[s]}/${ev.targets[s]} (${ev.diffs[s] > 0 ? '+' : ''}${ev.diffs[s]})`);

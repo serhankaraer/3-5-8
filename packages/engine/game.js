@@ -48,6 +48,7 @@ class Game {
     this.discarded = [];
     this.trump = null;
     this.trumpRevealed = false;
+    this.trumpBroken = false; // bu elde masaya koz atıldı mı (kırılmadan koz ile el açılamaz)
     this.targets = [0, 1, 2].map((s) => R.targetFor(s, this.dealer));
     this.tricksWon = [0, 0, 0];
     this.trick = [];
@@ -85,7 +86,7 @@ class Game {
         return { kind: 'pass', count: st.count, givers: st.givers.map((x) => ({ seat: x.seat, count: x.count })) };
       }
       case 'play': {
-        return { kind: 'play', cards: R.legalCards(this.hands[seat], this.trick, this.trump) };
+        return { kind: 'play', cards: R.legalCards(this.hands[seat], this.trick, this.trump, this.trumpBroken) };
       }
       default: return null;
     }
@@ -185,9 +186,10 @@ class Game {
     if (this.phase !== 'play') return { ok: false, error: 'Şu an kart oynanamaz' };
     const hand = this.hands[seat];
     if (!hand.includes(a.card)) return { ok: false, error: 'Kart elinde değil' };
-    if (!R.legalCards(hand, this.trick, this.trump).includes(a.card)) return { ok: false, error: 'Bu kartı atamazsın: renge uy, rengin yoksa koz at, büyük kartın varsa büyüt' };
+    if (!R.legalCards(hand, this.trick, this.trump, this.trumpBroken).includes(a.card)) return { ok: false, error: this.trick.length ? 'Bu kartı atamazsın: renge uy, rengin yoksa koz at, büyük kartın varsa büyüt' : 'Koz kırılmadan koz ile el açılamaz (yalnızca as, papaz ve kız ile açılabilir)' };
     this.hands[seat] = hand.filter((c) => c !== a.card);
     this.trick.push({ seat, card: a.card });
+    if (C.suitOf(a.card) === this.trump) this.trumpBroken = true;
     this._emit({ type: 'play', seat, card: a.card });
     if (this.trick.length === 3) {
       this.phase = 'trickEnd';
@@ -264,6 +266,7 @@ class Game {
       trickNo: this.trickNo,
       tricksWon: this.tricksWon.slice(),
       trump: this.trump,
+      trumpBroken: this.trumpBroken,
       discarded: isDealer ? this.discarded.slice() : null,
       gotKitty: isDealer ? this.kittyTaken.slice() : [],
       floor: { count: this.kitty.length, reveals: this.floorReveals.map((r) => ({ seat: r.seat, card: r.card })) },
